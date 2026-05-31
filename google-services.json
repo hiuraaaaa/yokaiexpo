@@ -1,49 +1,33 @@
 {
   "project_info": {
-    "project_number": "206619940359",
-    "project_id": "nefusoft-anime",
-    "storage_bucket": "nefusoft-anime.firebasestorage.app"
+    "project_number": "271967142358",
+    "project_id": "anime-d0055",
+    "storage_bucket": "anime-d0055.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:206619940359:android:c7e263185608a1c2be3ca2",
+        "mobilesdk_app_id": "1:271967142358:android:9a78253002a2ddd99fe477",
         "android_client_info": {
-          "package_name": "com.nefusoft.anime"
+          "package_name": "com.yokai.app"
         }
       },
       "oauth_client": [
         {
-          "client_id": "206619940359-6kjssptget9n95gkubbpb4055orn4641.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.nefusoft.anime",
-            "certificate_hash": "0547d6ac8b5c48585dbc6b33e43291b9b2195caa"
-          }
-        },
-        {
-          "client_id": "206619940359-j0h5gfqcnqnoasds5cpi3ifooc6nbko6.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.nefusoft.anime",
-            "certificate_hash": "bb34982c7646817bd88012dfda767c22e9b67f0f"
-          }
-        },
-        {
-          "client_id": "206619940359-r4c4arj7mkq2pip24cn8i365er8p57i0.apps.googleusercontent.com",
+          "client_id": "271967142358-sahquii3k8t7hearjcgpekvjd4fn72vc.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyCeTwX5NQAWlcd9XuxRdlcPw18aWHBTT38"
+          "current_key": "AIzaSyCaCH1WPRhfaFUhsTA_UtY_-qPWlkMxEKs"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "206619940359-r4c4arj7mkq2pip24cn8i365er8p57i0.apps.googleusercontent.com",
+              "client_id": "271967142358-sahquii3k8t7hearjcgpekvjd4fn72vc.apps.googleusercontent.com",
               "client_type": 3
             }
           ]
