@@ -14,10 +14,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     backgroundColor: '#0a0a0c',
   },
   assetBundlePatterns: ['**/*'],
-  ios: {
-    supportsTablet: false,
-    bundleIdentifier: 'com.claw.manhwa',
-  },
   android: {
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
@@ -25,16 +21,32 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     package: 'com.claw.manhwa',
     googleServicesFile: './google-services.json',
+    jsEngine: 'hermes',
+    enableProguardInReleaseBuilds: true,
+    enableShrinkResourcesInReleaseBuilds: true,
   },
   plugins: [
     'expo-router',
     '@react-native-firebase/app',
     '@react-native-firebase/auth',
     'expo-font',
-    ['expo-updates', { username: 'claw' }],
     './plugins/withAndroidSdk35.js',
     './plugins/disable-media-session.js',
   ],
   scheme: 'claw',
+  // ─── OTA Update ───────────────────────────────
+  updates: {
+    url: 'https://u.expo.dev/YOUR_PROJECT_ID', // ← ganti ini
+  },
+  runtimeVersion: {
+    policy: 'appVersion',
+  },
+  extra: {
+    eas: {
+      projectId: 'YOUR_PROJECT_ID', // ← dan ini
+    },
+  },
+  owner: 'YOUR_EXPO_USERNAME', // ← username expo lo
+  // ──────────────────────────────────────────────
   experiments: { typedRoutes: true },
 });
