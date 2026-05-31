@@ -2,8 +2,8 @@ import { ExpoConfig, ConfigContext } from 'expo/config';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: 'Claw',
-  slug: 'claw-manhwa',
+  name: 'Yōkai',
+  slug: 'yokai',
   version: '1.0.0',
   orientation: 'portrait',
   icon: './assets/icon.png',
@@ -19,7 +19,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       foregroundImage: './assets/adaptive-icon.png',
       backgroundColor: '#0a0a0c',
     },
-    package: 'com.claw.manhwa',
+    package: 'com.yokai.app',
     googleServicesFile: './google-services.json',
     jsEngine: 'hermes',
     enableProguardInReleaseBuilds: true,
@@ -36,17 +36,17 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   scheme: 'claw',
   // ─── OTA Update ───────────────────────────────
   updates: {
-    url: 'https://u.expo.dev/YOUR_PROJECT_ID', // ← ganti ini
+    url: 'https://u.expo.dev/d17fab3f-cb7b-4a97-bb88-827d9c745662', // ← ganti ini
   },
   runtimeVersion: {
     policy: 'appVersion',
   },
   extra: {
     eas: {
-      projectId: 'YOUR_PROJECT_ID', // ← dan ini
+      projectId: 'd17fab3f-cb7b-4a97-bb88-827d9c745662', // ← dan ini
     },
   },
-  owner: 'YOUR_EXPO_USERNAME', // ← username expo lo
+  owner: 'henxena', // ← username expo lo
   // ──────────────────────────────────────────────
   experiments: { typedRoutes: true },
 });
