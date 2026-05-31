@@ -9,54 +9,65 @@ const get = async <T>(path: string): Promise<T> => {
   return res.json();
 };
 
+// ─── List Extractor ───────────────────────────────────────────────────────────
+// Semua endpoint list pakai key "komikList", bukan "data"/"result"
+
+const extractList = (json: any): any[] =>
+  json?.komikList ?? json?.data ?? json?.result ?? (Array.isArray(json) ? json : []);
+
 // ─── Mappers ──────────────────────────────────────────────────────────────────
 
 function mapKomik(raw: any): Komik {
   return {
-    id:           raw.slug ?? raw.id ?? '',
-    title:        raw.title ?? raw.judul ?? '',
-    image_poster: raw.thumbnail ?? raw.cover ?? raw.image ?? '',
-    image_cover:  raw.cover ?? raw.thumbnail ?? raw.image ?? '',
-    synopsis:     raw.synopsis ?? raw.sinopsis ?? raw.description ?? '',
-    type:         raw.type ?? raw.tipe ?? '',
-    status:       raw.status ?? '',
-    year:         raw.year ?? raw.tahun ?? '',
-    author:       raw.author ?? raw.pengarang ?? '',
-    artist:       raw.artist ?? '',
-    genre:        Array.isArray(raw.genre)
-                    ? raw.genre.join(', ')
-                    : (raw.genre ?? ''),
-    rating:       String(raw.rating ?? raw.score ?? ''),
-    views:        String(raw.views ?? raw.view ?? ''),
-    serialization: raw.serialization ?? '',
+    id:            raw.slug ?? raw.id ?? '',
+    title:         raw.title ?? '',
+    image_poster:  raw.cover ?? raw.thumbnail ?? raw.image ?? '',
+    image_cover:   raw.cover ?? raw.thumbnail ?? raw.image ?? '',
+    synopsis:      raw.synopsis ?? '',
+    type:          raw.type ?? raw.tipe ?? '',
+    status:        raw.status ?? '',
+    year:          raw.release ?? raw.year ?? raw.tahun ?? '',
+    author:        raw.author ?? '',
+    artist:        raw.artist ?? '',
+    // genres di list = string, di detail = array of {title, slug}
+    genre:         Array.isArray(raw.genres)
+                     ? raw.genres.map((g: any) => g.title ?? g.name ?? g).join(', ')
+                     : (raw.genre ?? raw.type ?? ''),
+    rating:        String(raw.rating ?? raw.score ?? ''),
+    views:         String(raw.reader ?? raw.views ?? raw.view ?? ''),
+    serialization: raw.series ?? raw.serialization ?? '',
   };
 }
 
 function mapChapter(raw: any, idx: number): Chapter {
-  // API bisa return array of string atau object
   if (typeof raw === 'string') {
-    return {
-      id:    raw,
-      index: idx,
-      title: `Chapter ${idx + 1}`,
-      date:  '',
-    };
+    return { id: raw, index: idx, title: `Chapter ${idx + 1}`, date: '' };
   }
+
+  // Dari response asli: { title: "", slug: "nano-machine-chapter-314", date: "3 hari yang lalu" }
+  // Extract nomor chapter dari slug, e.g. "nano-machine-chapter-314" → 314
+  const slugStr: string = raw.slug ?? raw.id ?? '';
+  const chNumMatch = slugStr.match(/chapter-(\d+(?:\.\d+)?)$/i);
+  const chNum = chNumMatch ? Number(chNumMatch[1]) : idx + 1;
+
+  const titleFromSlug = `Chapter ${chNum}`;
+  const title = (raw.title && raw.title.trim() !== '')
+    ? raw.title
+    : titleFromSlug;
+
   return {
-    id:    raw.slug ?? raw.url ?? raw.id ?? String(idx),
-    index: Number(raw.chapter ?? raw.ch ?? raw.number ?? idx),
-    title: raw.title ?? raw.judul ?? `Chapter ${raw.chapter ?? idx + 1}`,
-    date:  raw.date ?? raw.tanggal ?? raw.released ?? '',
+    id:    slugStr || String(idx),
+    index: chNum,
+    title,
+    date:  raw.date ?? raw.tanggal ?? '',
   };
 }
 
 function mapKomikDetail(raw: any): KomikDetail {
   const base = mapKomik(raw);
 
-  // Chapter list — beberapa API return 'chapters', 'chapter_list', atau 'chapter'
-  const rawChapters: any[] =
-    raw.chapters ?? raw.chapter_list ?? raw.chapter ?? [];
-
+  // Response asli pakai key "chapters"
+  const rawChapters: any[] = raw.chapters ?? raw.chapter_list ?? raw.chapter ?? [];
   const chapter_list: Chapter[] = rawChapters.map((ch, i) => mapChapter(ch, i));
 
   return { ...base, chapter_list };
@@ -67,59 +78,53 @@ function mapKomikDetail(raw: any): KomikDetail {
 /** GET /comic/bacakomik/latest */
 const fetchLatest = async (): Promise<ApiResponse<Komik[]>> => {
   const json = await get<any>('/latest');
-  const list: any[] = json?.data ?? json?.result ?? (Array.isArray(json) ? json : []);
-  return { status: true, data: list.map(mapKomik) };
+  return { status: true, data: extractList(json).map(mapKomik) };
 };
 
 /** GET /comic/bacakomik/populer */
 const fetchPopuler = async (): Promise<ApiResponse<Komik[]>> => {
   const json = await get<any>('/populer');
-  const list: any[] = json?.data ?? json?.result ?? (Array.isArray(json) ? json : []);
-  return { status: true, data: list.map(mapKomik) };
+  return { status: true, data: extractList(json).map(mapKomik) };
 };
 
 /** GET /comic/bacakomik/top */
 const fetchTop = async (): Promise<ApiResponse<Komik[]>> => {
   const json = await get<any>('/top');
-  const list: any[] = json?.data ?? json?.result ?? (Array.isArray(json) ? json : []);
-  return { status: true, data: list.map(mapKomik) };
+  return { status: true, data: extractList(json).map(mapKomik) };
 };
 
 /** GET /comic/bacakomik/list */
 const fetchList = async (): Promise<ApiResponse<Komik[]>> => {
   const json = await get<any>('/list');
-  const list: any[] = json?.data ?? json?.result ?? (Array.isArray(json) ? json : []);
-  return { status: true, data: list.map(mapKomik) };
+  return { status: true, data: extractList(json).map(mapKomik) };
 };
 
 /** GET /comic/bacakomik/recomen */
 const fetchRekomendasi = async (): Promise<ApiResponse<Komik[]>> => {
   const json = await get<any>('/recomen');
-  const list: any[] = json?.data ?? json?.result ?? (Array.isArray(json) ? json : []);
-  return { status: true, data: list.map(mapKomik) };
+  return { status: true, data: extractList(json).map(mapKomik) };
 };
 
 /** GET /comic/bacakomik/only/:type — manhwa | manga | manhua */
 const fetchByType = async (type: string): Promise<ApiResponse<Komik[]>> => {
   const json = await get<any>(`/only/${encodeURIComponent(type)}`);
-  const list: any[] = json?.data ?? json?.result ?? (Array.isArray(json) ? json : []);
-  return { status: true, data: list.map(mapKomik) };
+  return { status: true, data: extractList(json).map(mapKomik) };
 };
 
 /** GET /comic/bacakomik/komikberwarna/:page */
 const fetchKomikBerwarna = async (page = 1): Promise<ApiResponse<Komik[]>> => {
   const json = await get<any>(`/komikberwarna/${page}`);
-  const list: any[] = json?.data ?? json?.result ?? (Array.isArray(json) ? json : []);
-  return { status: true, data: list.map(mapKomik) };
+  return { status: true, data: extractList(json).map(mapKomik) };
 };
 
 /** GET /comic/bacakomik/genres */
 const fetchGenres = async (): Promise<ApiResponse<Genre[]>> => {
   const json = await get<any>('/genres');
-  const list: any[] = json?.data ?? json?.result ?? (Array.isArray(json) ? json : []);
+  // Response asli: { genres: [ { title: "Action", slug: "action" }, ... ] }
+  const list: any[] = json?.genres ?? json?.data ?? json?.result ?? (Array.isArray(json) ? json : []);
   const genres: Genre[] = list.map((g: any) => ({
-    id:   g.slug ?? g.id ?? g.name ?? String(g),
-    name: g.name ?? g.label ?? String(g),
+    id:   g.slug ?? g.id ?? '',
+    name: g.title ?? g.name ?? '',
   }));
   return { status: true, data: genres };
 };
@@ -127,23 +132,22 @@ const fetchGenres = async (): Promise<ApiResponse<Genre[]>> => {
 /** GET /comic/bacakomik/genre/:genre */
 const fetchByGenre = async (genre: string): Promise<ApiResponse<Komik[]>> => {
   const json = await get<any>(`/genre/${encodeURIComponent(genre)}`);
-  const list: any[] = json?.data ?? json?.result ?? (Array.isArray(json) ? json : []);
-  return { status: true, data: list.map(mapKomik) };
+  return { status: true, data: extractList(json).map(mapKomik) };
 };
 
 /** GET /comic/bacakomik/search/:query */
 const fetchSearch = async (query: string): Promise<ApiResponse<Komik[]>> => {
   const json = await get<any>(`/search/${encodeURIComponent(query.trim())}`);
-  const list: any[] =
-    json?.data ?? json?.result ?? json?.results ?? (Array.isArray(json) ? json : []);
-  return { status: true, data: list.map(mapKomik) };
+  // Search juga pakai komikList (confirmed dari response asli)
+  return { status: true, data: extractList(json).map(mapKomik) };
 };
 
 /** GET /comic/bacakomik/detail/:slug */
 const fetchDetail = async (slug: string): Promise<ApiResponse<KomikDetail>> => {
   const json = await get<any>(`/detail/${encodeURIComponent(slug)}`);
-  const raw = json?.data?.[0] ?? json?.data ?? json?.result ?? json;
-  if (!raw) return { status: false, data: null as any };
+  // Response asli: { detail: { ... } }, bukan data/result
+  const raw = json?.detail ?? json?.data?.[0] ?? json?.data ?? json?.result ?? json;
+  if (!raw || typeof raw !== 'object') return { status: false, data: null as any };
   return { status: true, data: mapKomikDetail(raw) };
 };
 
@@ -151,9 +155,8 @@ const fetchDetail = async (slug: string): Promise<ApiResponse<KomikDetail>> => {
 const fetchChapter = async (slug: string): Promise<ApiResponse<ChapterPage[]>> => {
   const json = await get<any>(`/chapter/${encodeURIComponent(slug)}`);
 
-  // API kemungkinan return array of URL string, atau array of { url, src, image }
   const raw: any[] =
-    json?.data ?? json?.images ?? json?.pages ?? (Array.isArray(json) ? json : []);
+    json?.images ?? json?.pages ?? json?.data ?? (Array.isArray(json) ? json : []);
 
   const pages: ChapterPage[] = raw.map((item: any, i: number) => ({
     url:   typeof item === 'string' ? item : (item.url ?? item.src ?? item.image ?? ''),
@@ -167,29 +170,29 @@ const fetchChapter = async (slug: string): Promise<ApiResponse<ChapterPage[]>> =
 
 export const api = {
   // Home
-  home:           ()                    => Promise.all([fetchLatest(), fetchPopuler(), fetchTop(), fetchRekomendasi()]),
+  home:          ()               => Promise.all([fetchLatest(), fetchPopuler(), fetchTop(), fetchRekomendasi()]),
 
   // Lists
-  latest:         ()                    => fetchLatest(),
-  populer:        ()                    => fetchPopuler(),
-  top:            ()                    => fetchTop(),
-  list:           ()                    => fetchList(),
-  rekomendasi:    ()                    => fetchRekomendasi(),
-  komikBerwarna:  (page?: number)       => fetchKomikBerwarna(page),
+  latest:        ()               => fetchLatest(),
+  populer:       ()               => fetchPopuler(),
+  top:           ()               => fetchTop(),
+  list:          ()               => fetchList(),
+  rekomendasi:   ()               => fetchRekomendasi(),
+  komikBerwarna: (page?: number)  => fetchKomikBerwarna(page),
 
   // Filter
-  byType:         (type: string)        => fetchByType(type),
-  byGenre:        (genre: string)       => fetchByGenre(genre),
+  byType:        (type: string)   => fetchByType(type),
+  byGenre:       (genre: string)  => fetchByGenre(genre),
 
   // Search
-  search:         (q: string)           => fetchSearch(q),
+  search:        (q: string)      => fetchSearch(q),
 
   // Genres
-  genres:         ()                    => fetchGenres(),
+  genres:        ()               => fetchGenres(),
 
   // Detail & Reader
-  detail:         (slug: string)        => fetchDetail(slug),
-  chapter:        (slug: string)        => fetchChapter(slug),
+  detail:        (slug: string)   => fetchDetail(slug),
+  chapter:       (slug: string)   => fetchChapter(slug),
 };
 
 // ─── Slug Helpers ─────────────────────────────────────────────────────────────
