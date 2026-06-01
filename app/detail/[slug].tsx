@@ -3,7 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, Dimensions, ActivityIndicator, Alert,
 } from 'react-native';
-import FastImage from 'react-native-fast-image';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -131,10 +131,10 @@ export default function DetailScreen() {
           <>
             {/* Hero */}
             <View style={styles.hero}>
-              <FastImage
-                source={{ uri: detail.image_cover || detail.image_poster, priority: FastImage.priority.high }}
+              <Image
+                source={{ uri: detail.image_cover || detail.image_poster, priority: 'high' }}
                 style={StyleSheet.absoluteFillObject}
-                resizeMode={FastImage.resizeMode.cover}
+                contentFit="cover"
               />
               <LinearGradient
                 colors={['rgba(0,0,0,0.3)', theme.bg]}
@@ -161,10 +161,10 @@ export default function DetailScreen() {
               <View style={styles.heroInfo}>
                 <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
                   {/* Poster kecil */}
-                  <FastImage
+                  <Image
                     source={{ uri: detail.image_poster }}
                     style={styles.miniPoster}
-                    resizeMode={FastImage.resizeMode.cover}
+                    contentFit="cover"
                   />
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.title, { color: theme.text }]}>{detail.title}</Text>
