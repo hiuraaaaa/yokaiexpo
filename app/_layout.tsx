@@ -8,6 +8,7 @@ import * as Updates from 'expo-updates';
 import { loadSavedTheme, useTheme } from '@/hooks/theme';
 import { isAdmin, onAuthStateChanged } from '@/hooks/auth';
 import DebugOverlay from '@/components/DebugOverlay';
+import OTADebug from '@/components/OTADebug';
 import MaintenancePage from '@/components/MaintenancePage';
 import firestore from '@react-native-firebase/firestore';
 import '../global.css';
@@ -80,6 +81,7 @@ function AppLayout() {
         <Stack.Screen name="read/[slug]"   options={{ animation: 'slide_from_bottom', gestureEnabled: false }} />
       </Stack>
       {__DEV__ && <DebugOverlay />}
+      <OTADebug />
     </>
   );
 }
