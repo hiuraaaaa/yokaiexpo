@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import FastImage from 'react-native-fast-image';
+import { Image } from 'expo-image';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 import { useTheme } from '@/hooks/theme';
 import { Komik } from '@/types';
@@ -46,10 +46,10 @@ export default function KomikCard({ komik, onPress, width, showType = true }: Pr
       style={[animStyle, width ? { width } : { flex: 1 }]}
     >
       <View style={[styles.posterWrapper, { backgroundColor: theme.card }]}>
-        <FastImage
-          source={{ uri: komik.image_poster, priority: FastImage.priority.normal, cache: FastImage.cacheControl.immutable }}
+        <Image
+          source={{ uri: komik.image_poster, priority: 'normal', cachePolicy: 'memory-disk' }}
           style={StyleSheet.absoluteFillObject}
-          resizeMode={FastImage.resizeMode.cover}
+          contentFit="cover"
         />
         <LinearGradient colors={['transparent', 'rgba(0,0,0,0.65)']} style={styles.gradient} />
 
