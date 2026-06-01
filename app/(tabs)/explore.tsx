@@ -16,10 +16,19 @@ import KomikCard from '@/components/KomikCard';
 import SearchModal from '@/components/SearchModal';
 
 const { width } = Dimensions.get('window');
-const NUM_COLS  = 3;
+const NUM_COLS  = 4;
 const CARD_W    = (width - 16 * 2 - 8 * (NUM_COLS - 1)) / NUM_COLS;
 
 type FilterMode = 'latest' | 'populer' | 'top' | 'type' | 'genre' | 'colored';
+
+const FILTER_TABS: { key: FilterMode; label: string; icon: any }[] = [
+  { key: 'latest',  label: 'Terbaru',  icon: 'time-outline' },
+  { key: 'populer', label: 'Populer',  icon: 'flame-outline' },
+  { key: 'top',     label: 'Top',      icon: 'trophy-outline' },
+  { key: 'type',    label: 'Tipe',     icon: 'layers-outline' },
+  { key: 'genre',   label: 'Genre',    icon: 'grid-outline' },
+  { key: 'colored', label: 'Berwarna', icon: 'color-palette-outline' },
+];
 
 export default function ExploreScreen() {
   const theme  = useTheme();
@@ -38,16 +47,16 @@ export default function ExploreScreen() {
     setLoading(true);
     try {
       let res;
-      if (mode === 'latest')  res = await api.latest();
+      if (mode === 'latest')       res = await api.latest();
       else if (mode === 'populer') res = await api.populer();
       else if (mode === 'top')     res = await api.top();
       else if (mode === 'type')    res = await api.byType(type);
       else if (mode === 'genre')   res = await api.byGenre(genre);
       else if (mode === 'colored') res = await api.komikBerwarna(pg);
-      else res = await api.latest();
+      else                         res = await api.latest();
       setData(res?.data ?? []);
     } catch { setData([]); }
-    finally { setLoading(false); }
+    finally  { setLoading(false); }
   }, []);
 
   useEffect(() => {
@@ -58,90 +67,91 @@ export default function ExploreScreen() {
     api.genres().then(r => setGenres(r.data ?? []));
   }, []);
 
-  const setFilter = (mode: FilterMode) => {
-    setFilterMode(mode);
-    setPage(1);
-  };
-
-  const FILTER_TABS: { key: FilterMode; label: string }[] = [
-    { key: 'latest',  label: 'Terbaru' },
-    { key: 'populer', label: 'Populer' },
-    { key: 'top',     label: 'Top' },
-    { key: 'type',    label: 'Type' },
-    { key: 'genre',   label: 'Genre' },
-    { key: 'colored', label: '🎨 Berwarna' },
-  ];
+  const setFilter = (mode: FilterMode) => { setFilterMode(mode); setPage(1); };
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
       <SafeAreaView edges={['top']}>
+
         {/* Header */}
         <View style={styles.header}>
           <Text style={[styles.title, { color: theme.text }]}>Explore</Text>
-          <TouchableOpacity onPress={() => setSearchOpen(true)} style={[styles.iconBtn, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <TouchableOpacity
+            onPress={() => setSearchOpen(true)}
+            style={[styles.iconBtn, { backgroundColor: theme.card, borderColor: theme.border }]}
+          >
             <Ionicons name="search-outline" size={18} color={theme.subtext} />
           </TouchableOpacity>
         </View>
 
         {/* Filter tabs */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-          {FILTER_TABS.map(tab => (
-            <TouchableOpacity
-              key={tab.key}
-              onPress={() => setFilter(tab.key)}
-              style={[styles.filterTab, {
-                backgroundColor: filterMode === tab.key ? theme.accent : theme.card,
-                borderColor: filterMode === tab.key ? theme.accent : theme.border,
-              }]}
-            >
-              <Text style={[styles.filterTabText, {
-                color: filterMode === tab.key ? theme.bg : theme.subtext,
-              }]}>
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {FILTER_TABS.map(tab => {
+            const active = filterMode === tab.key;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                onPress={() => setFilter(tab.key)}
+                style={[styles.filterTab, {
+                  backgroundColor: active ? theme.accent : theme.card,
+                  borderColor:     active ? theme.accent : theme.border,
+                }]}
+              >
+                <Ionicons name={tab.icon} size={12} color={active ? theme.bg : theme.subtext} />
+                <Text style={[styles.filterTabText, { color: active ? theme.bg : theme.subtext }]}>
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
 
         {/* Type sub-filter */}
         {filterMode === 'type' && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-            {KOMIK_TYPES.map(t => (
-              <TouchableOpacity
-                key={t}
-                onPress={() => setActiveType(t)}
-                style={[styles.filterTab, {
-                  backgroundColor: activeType === t ? `${theme.accent}30` : 'transparent',
-                  borderColor: activeType === t ? theme.accent : theme.border,
-                }]}
-              >
-                <Text style={[styles.filterTabText, { color: activeType === t ? theme.accent : theme.subtext }]}>
-                  {t.charAt(0).toUpperCase() + t.slice(1)}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {KOMIK_TYPES.map(t => {
+              const active = activeType === t;
+              return (
+                <TouchableOpacity
+                  key={t}
+                  onPress={() => setActiveType(t)}
+                  style={[styles.filterTab, {
+                    backgroundColor: active ? `${theme.accent}25` : 'transparent',
+                    borderColor:     active ? theme.accent : theme.border,
+                  }]}
+                >
+                  <Text style={[styles.filterTabText, { color: active ? theme.accent : theme.subtext }]}>
+                    {t.charAt(0).toUpperCase() + t.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         )}
 
         {/* Genre sub-filter */}
         {filterMode === 'genre' && genres.length > 0 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-            {genres.map(g => (
-              <TouchableOpacity
-                key={g.id}
-                onPress={() => setActiveGenre(g.id)}
-                style={[styles.filterTab, {
-                  backgroundColor: activeGenre === g.id ? `${theme.accent}30` : 'transparent',
-                  borderColor: activeGenre === g.id ? theme.accent : theme.border,
-                }]}
-              >
-                <Text style={[styles.filterTabText, { color: activeGenre === g.id ? theme.accent : theme.subtext }]}>
-                  {g.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {genres.map(g => {
+              const active = activeGenre === g.id;
+              return (
+                <TouchableOpacity
+                  key={g.id}
+                  onPress={() => setActiveGenre(g.id)}
+                  style={[styles.filterTab, {
+                    backgroundColor: active ? `${theme.accent}25` : 'transparent',
+                    borderColor:     active ? theme.accent : theme.border,
+                  }]}
+                >
+                  <Text style={[styles.filterTabText, { color: active ? theme.accent : theme.subtext }]}>
+                    {g.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         )}
+
       </SafeAreaView>
 
       {loading ? (
@@ -159,7 +169,7 @@ export default function ExploreScreen() {
             <View style={{
               flex: 1,
               marginRight: (index % NUM_COLS) < NUM_COLS - 1 ? 8 : 0,
-              marginBottom: 16,
+              marginBottom: 14,
             }}>
               <KomikCard
                 komik={item}
@@ -180,9 +190,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 12,
   },
-  title: { fontSize: 22, fontWeight: '900' },
-  iconBtn: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
-  filterRow: { paddingHorizontal: 16, paddingBottom: 12, gap: 8 },
-  filterTab: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
+  title:         { fontSize: 22, fontWeight: '900' },
+  iconBtn:       { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  filterRow:     { paddingHorizontal: 16, paddingBottom: 12, gap: 8 },
+  filterTab:     { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
   filterTabText: { fontSize: 12, fontWeight: '700' },
 });
