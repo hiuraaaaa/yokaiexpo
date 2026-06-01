@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { FlashList } from '@shopify/flash-list';
 import { useFocusEffect, useRouter } from 'expo-router';
-import FastImage from 'react-native-fast-image';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { useTheme } from '@/hooks/theme';
@@ -28,10 +28,10 @@ function KomikItem({ komik, subtitle, onPress, onLongPress }: {
   return (
     <TouchableOpacity onPress={onPress} onLongPress={onLongPress} activeOpacity={0.8} style={{ width: CARD_W }}>
       <View style={{ position: 'relative' }}>
-        <FastImage
+        <Image
           source={{ uri: komik.image_poster }}
           style={{ width: CARD_W, aspectRatio: 2 / 3, borderRadius: 10 }}
-          resizeMode={FastImage.resizeMode.cover}
+          contentFit="cover"
         />
         <LinearGradient colors={['transparent', 'rgba(0,0,0,0.6)']} style={StyleSheet.absoluteFill} />
       </View>
