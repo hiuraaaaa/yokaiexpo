@@ -25,7 +25,7 @@ import SearchModal from '@/components/SearchModal';
 import { HeroSkeleton, SectionSkeleton } from '@/components/Skeleton';
 
 const { width } = Dimensions.get('window');
-const CARD_W    = width / 3 - 14;
+const CARD_W = (width - 32 - 24) / 4;
 const LOGO_URL  = 'https://raw.githubusercontent.com/hiuraaaaa/assets/main/yoaki-icon.png';
 
 const TYPE_COLORS: Record<string, string> = {
