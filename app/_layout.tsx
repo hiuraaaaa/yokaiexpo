@@ -4,6 +4,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useEffect, useState } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
+import * as Updates from 'expo-updates';
 import { loadSavedTheme, useTheme } from '@/hooks/theme';
 import { isAdmin, onAuthStateChanged } from '@/hooks/auth';
 import DebugOverlay from '@/components/DebugOverlay';
@@ -46,6 +47,19 @@ function AppLayout() {
   useEffect(() => {
     if (!appReady) { setAppReady(true); SplashScreen.hideAsync(); }
   }, [theme]);
+
+  useEffect(() => {
+    async function checkUpdate() {
+      try {
+        const update = await Updates.checkForUpdateAsync();
+        if (update.isAvailable) {
+          await Updates.fetchUpdateAsync();
+          await Updates.reloadAsync();
+        }
+      } catch {}
+    }
+    if (!__DEV__) checkUpdate();
+  }, []);
 
   if (maintenance) {
     return (
