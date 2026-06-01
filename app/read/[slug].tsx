@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, Dimensions, TouchableOpacity,
   ActivityIndicator, Modal, ScrollView, StatusBar,
 } from 'react-native';
-import FastImage from 'react-native-fast-image';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,16 +28,16 @@ const { width, height } = Dimensions.get('window');
 function PageItem({ page, readerBg }: { page: ChapterPage; readerBg: string }) {
   const [imgH, setImgH] = useState(height * 0.8);
 
-  FastImage.prefetch(page.url);
+  Image.prefetch(page.url);
 
   return (
     <View style={{ width, backgroundColor: readerBg }}>
-      <FastImage
-        source={{ uri: page.url, priority: FastImage.priority.high, cache: FastImage.cacheControl.immutable }}
+      <Image
+        source={{ uri: page.url, priority: 'high', cachePolicy: 'memory-disk' }}
         style={{ width, height: imgH }}
-        resizeMode={FastImage.resizeMode.contain}
+        contentFit="contain"
         onLoad={e => {
-          const { width: iw, height: ih } = e.nativeEvent;
+          const { width: iw, height: ih } = e.source;
           if (iw && ih) setImgH((ih / iw) * width);
         }}
       />
