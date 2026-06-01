@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { useEffect } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,8 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTheme } from '@/hooks/theme';
 
-const TAB_HEIGHT  = 64;
-const BUBBLE_SIZE = 58;
+const TAB_HEIGHT  = 60;
 
 const TABS = [
   { name: 'index',    label: 'Home',     iconActive: 'home',      iconInactive: 'home-outline' },
@@ -21,55 +20,48 @@ const TABS = [
   { name: 'profile',  label: 'Profile',  iconActive: 'person',    iconInactive: 'person-outline' },
 ] as const;
 
-function TabIcon({ focused, label, iconActive, iconInactive, badge }: {
+function TabIcon({ focused, label, iconActive, iconInactive }: {
   focused: boolean; label: string;
-  iconActive: string; iconInactive: string; badge?: string;
+  iconActive: string; iconInactive: string;
 }) {
-  const theme      = useTheme();
-  const scale      = useSharedValue(focused ? 1 : 0.85);
-  const translateY = useSharedValue(focused ? 0 : 4);
-  const opacity    = useSharedValue(focused ? 1 : 0.6);
+  const theme   = useTheme();
+  const scale   = useSharedValue(focused ? 1 : 0.9);
+  const opacity = useSharedValue(focused ? 1 : 0.45);
+  const labelW  = useSharedValue(focused ? 1 : 0);
 
   useEffect(() => {
-    scale.value      = withSpring(focused ? 1 : 0.85,  { damping: 14, stiffness: 120 });
-    translateY.value = withSpring(focused ? 0 : 4,     { damping: 14, stiffness: 120 });
-    opacity.value    = withTiming(focused ? 1 : 0.6,   { duration: 200 });
+    scale.value   = withSpring(focused ? 1 : 0.9,  { damping: 15, stiffness: 200 });
+    opacity.value = withTiming(focused ? 1 : 0.45, { duration: 180 });
+    labelW.value  = withSpring(focused ? 1 : 0,    { damping: 16, stiffness: 180 });
   }, [focused]);
 
   const animStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }, { translateY: translateY.value }],
+    transform: [{ scale: scale.value }],
     opacity: opacity.value,
   }));
 
-  if (focused) {
-    return (
-      <Animated.View style={[styles.activeBubbleWrapper, animStyle]}>
-        <View style={[styles.activeBubble, { shadowColor: theme.accent, borderColor: `${theme.accent}60` }]}>
-          <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: `${theme.accent}30`, borderRadius: BUBBLE_SIZE / 2 }]} />
-          <Ionicons name={iconActive as any} size={26} color={theme.accent} />
-          {badge && (
-            <View style={[styles.badge, { backgroundColor: theme.accent }]}>
-              <Text style={styles.badgeText}>{badge}</Text>
-            </View>
-          )}
-        </View>
-        <Text style={[styles.activeLabel, { color: theme.accent }]}>{label.toUpperCase()}</Text>
-      </Animated.View>
-    );
-  }
+  const pillStyle = useAnimatedStyle(() => ({
+    width: labelW.value * 68 + 36,
+    opacity: labelW.value,
+  }));
 
   return (
-    <Animated.View style={[styles.inactiveWrapper, animStyle]}>
-      <View>
-        <Ionicons name={iconInactive as any} size={24} color={theme.subtext} />
-        {badge && (
-          <View style={[styles.badge, { backgroundColor: theme.accent }]}>
-            <Text style={styles.badgeText}>{badge}</Text>
-          </View>
+    <View style={styles.iconWrapper}>
+      <Animated.View style={[styles.pill, { backgroundColor: focused ? `${theme.accent}20` : 'transparent', borderColor: focused ? `${theme.accent}30` : 'transparent' }, pillStyle]}>
+        <Animated.View style={animStyle}>
+          <Ionicons
+            name={(focused ? iconActive : iconInactive) as any}
+            size={22}
+            color={focused ? theme.accent : theme.subtext}
+          />
+        </Animated.View>
+        {focused && (
+          <Animated.Text style={[styles.label, { color: theme.accent }, { opacity: labelW }]}>
+            {label}
+          </Animated.Text>
         )}
-      </View>
-    </Animated.View>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -77,11 +69,11 @@ function TabBarBackground() {
   const theme = useTheme();
   return (
     <View style={StyleSheet.absoluteFill}>
-      <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFill} />
+      <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
       <View style={[StyleSheet.absoluteFill, {
-        borderTopWidth: 1,
-        borderTopColor: `${theme.accent}20`,
-        backgroundColor: `${theme.bg}70`,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: `${theme.accent}15`,
+        backgroundColor: `${theme.bg}85`,
       }]} />
     </View>
   );
@@ -117,6 +109,7 @@ export default function TabLayout() {
           key={tab.name}
           name={tab.name}
           options={{
+            href: tab.name === 'browse' ? null : undefined,
             tabBarIcon: ({ focused }) => (
               <TabIcon
                 focused={focused}
@@ -133,15 +126,25 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  activeBubbleWrapper: { alignItems: 'center', justifyContent: 'flex-start', marginTop: -(BUBBLE_SIZE / 2 + 4) },
-  activeBubble: {
-    width: BUBBLE_SIZE, height: BUBBLE_SIZE, borderRadius: BUBBLE_SIZE / 2,
-    alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-    borderWidth: 1, shadowOpacity: 0.5, shadowRadius: 16,
-    shadowOffset: { width: 0, height: 4 }, elevation: 12,
+  iconWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
   },
-  activeLabel:    { fontSize: 9, fontWeight: '900', marginTop: 5, letterSpacing: 0.5 },
-  inactiveWrapper:{ alignItems: 'center', justifyContent: 'center', paddingTop: 8 },
-  badge: { position: 'absolute', top: -4, right: -8, borderRadius: 6, paddingHorizontal: 4, paddingVertical: 1 },
-  badgeText: { fontSize: 7, fontWeight: '900', color: '#000', letterSpacing: 0.3 },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    gap: 6,
+    overflow: 'hidden',
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
 });
