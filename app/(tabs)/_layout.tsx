@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useEffect } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,14 +10,14 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTheme } from '@/hooks/theme';
 
-const TAB_HEIGHT  = 60;
+const TAB_HEIGHT = 60;
 
 const TABS = [
-  { name: 'index',    label: 'Home',     iconActive: 'home',      iconInactive: 'home-outline' },
-  { name: 'explore',  label: 'Explore',  iconActive: 'compass',   iconInactive: 'compass-outline' },
-  { name: 'library',  label: 'Library',  iconActive: 'bookmark',  iconInactive: 'bookmark-outline' },
-  { name: 'browse',   label: 'Browse',   iconActive: 'grid',      iconInactive: 'grid-outline' },
-  { name: 'profile',  label: 'Profile',  iconActive: 'person',    iconInactive: 'person-outline' },
+  { name: 'index',   label: 'Home',    iconActive: 'home',     iconInactive: 'home-outline' },
+  { name: 'explore', label: 'Explore', iconActive: 'compass',  iconInactive: 'compass-outline' },
+  { name: 'library', label: 'Library', iconActive: 'bookmark', iconInactive: 'bookmark-outline' },
+  { name: 'browse',  label: 'Browse',  iconActive: 'grid',     iconInactive: 'grid-outline' },
+  { name: 'profile', label: 'Profile', iconActive: 'person',   iconInactive: 'person-outline' },
 ] as const;
 
 function TabIcon({ focused, label, iconActive, iconInactive }: {
@@ -26,12 +26,12 @@ function TabIcon({ focused, label, iconActive, iconInactive }: {
 }) {
   const theme   = useTheme();
   const scale   = useSharedValue(focused ? 1 : 0.9);
-  const opacity = useSharedValue(focused ? 1 : 0.45);
+  const opacity = useSharedValue(focused ? 1 : 0.7);
   const labelW  = useSharedValue(focused ? 1 : 0);
 
   useEffect(() => {
     scale.value   = withSpring(focused ? 1 : 0.9,  { damping: 15, stiffness: 200 });
-    opacity.value = withTiming(focused ? 1 : 0.45, { duration: 180 });
+    opacity.value = withTiming(focused ? 1 : 0.7,  { duration: 180 });
     labelW.value  = withSpring(focused ? 1 : 0,    { damping: 16, stiffness: 180 });
   }, [focused]);
 
@@ -42,12 +42,19 @@ function TabIcon({ focused, label, iconActive, iconInactive }: {
 
   const pillStyle = useAnimatedStyle(() => ({
     width: labelW.value * 68 + 36,
-    opacity: labelW.value,
+    opacity: 1,
   }));
 
   return (
     <View style={styles.iconWrapper}>
-      <Animated.View style={[styles.pill, { backgroundColor: focused ? `${theme.accent}20` : 'transparent', borderColor: focused ? `${theme.accent}30` : 'transparent' }, pillStyle]}>
+      <Animated.View style={[
+        styles.pill,
+        {
+          backgroundColor: focused ? `${theme.accent}20` : 'transparent',
+          borderColor: focused ? `${theme.accent}30` : 'transparent',
+        },
+        pillStyle,
+      ]}>
         <Animated.View style={animStyle}>
           <Ionicons
             name={(focused ? iconActive : iconInactive) as any}
@@ -56,9 +63,9 @@ function TabIcon({ focused, label, iconActive, iconInactive }: {
           />
         </Animated.View>
         {focused && (
-          <Animated.Text style={[styles.label, { color: theme.accent }, { opacity: labelW }]}>
+          <Text style={[styles.label, { color: theme.accent }]}>
             {label}
-          </Animated.Text>
+          </Text>
         )}
       </Animated.View>
     </View>
@@ -130,6 +137,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flex: 1,
+    paddingTop: 4,
   },
   pill: {
     flexDirection: 'row',
