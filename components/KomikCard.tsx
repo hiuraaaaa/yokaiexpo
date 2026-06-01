@@ -107,7 +107,7 @@ export default function KomikCard({ komik, onPress, width, showType = true }: Pr
 const styles = StyleSheet.create({
   posterWrapper: {
     aspectRatio: 2 / 3,
-    borderRadius: 8,
+    borderRadius: 0,
     overflow: 'hidden',
   },
   gradient: {
