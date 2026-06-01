@@ -9,7 +9,6 @@ import { isAdmin, onAuthStateChanged } from '@/hooks/auth';
 import DebugOverlay from '@/components/DebugOverlay';
 import MaintenancePage from '@/components/MaintenancePage';
 import firestore from '@react-native-firebase/firestore';
-import crashlytics from '@react-native-firebase/crashlytics';
 import '../global.css';
 
 SplashScreen.preventAutoHideAsync();
@@ -27,10 +26,6 @@ function AppLayout() {
   const [appReady, setAppReady]       = useState(false);
 
   useEffect(() => { loadSavedTheme(); }, []);
-
-  useEffect(() => {
-    crashlytics().setCrashlyticsCollectionEnabled(true);
-  }, []);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(() => setAdminUser(isAdmin()));
