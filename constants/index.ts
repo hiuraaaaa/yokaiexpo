@@ -24,6 +24,17 @@ export type Theme = {
 
 export const THEMES: Theme[] = [
   {
+  id: 'yokai',
+  name: 'Yōkai',
+  bg: '#040d14',
+  card: '#0a1a24',
+  accent: '#00d4ff',
+  accentDim: 'rgba(0,212,255,0.2)',
+  border: 'rgba(0,212,255,0.08)',
+  text: '#ffffff',
+  subtext: 'rgba(255,255,255,0.4)',
+},
+  {
     id: 'gold',
     name: 'Gold',
     bg: '#0a0a0c',
