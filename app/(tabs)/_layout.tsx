@@ -25,49 +25,40 @@ function TabIcon({ focused, label, iconActive, iconInactive }: {
   iconActive: string; iconInactive: string;
 }) {
   const theme   = useTheme();
-  const scale   = useSharedValue(focused ? 1 : 0.9);
-  const opacity = useSharedValue(focused ? 1 : 0.7);
-  const labelW  = useSharedValue(focused ? 1 : 0);
+  const scale   = useSharedValue(1);
+  const opacity = useSharedValue(focused ? 1 : 0.5);
+  const bgOpacity = useSharedValue(focused ? 1 : 0);
 
   useEffect(() => {
-    scale.value   = withSpring(focused ? 1 : 0.9,  { damping: 15, stiffness: 200 });
-    opacity.value = withTiming(focused ? 1 : 0.7,  { duration: 180 });
-    labelW.value  = withSpring(focused ? 1 : 0,    { damping: 16, stiffness: 180 });
+    scale.value      = withSpring(focused ? 1.05 : 1, { damping: 15, stiffness: 200 });
+    opacity.value    = withTiming(focused ? 1 : 0.5,  { duration: 180 });
+    bgOpacity.value  = withTiming(focused ? 1 : 0,    { duration: 200 });
   }, [focused]);
 
-  const animStyle = useAnimatedStyle(() => ({
+  const iconStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
     opacity: opacity.value,
   }));
 
-  const pillStyle = useAnimatedStyle(() => ({
-    width: labelW.value * 68 + 36,
-    opacity: 1,
+  const bgStyle = useAnimatedStyle(() => ({
+    opacity: bgOpacity.value,
   }));
 
   return (
     <View style={styles.iconWrapper}>
-      <Animated.View style={[
-        styles.pill,
-        {
-          backgroundColor: focused ? `${theme.accent}20` : 'transparent',
-          borderColor: focused ? `${theme.accent}30` : 'transparent',
-        },
-        pillStyle,
-      ]}>
-        <Animated.View style={animStyle}>
+      <View style={styles.iconContainer}>
+        <Animated.View style={[styles.iconBg, { backgroundColor: `${theme.accent}20`, borderColor: `${theme.accent}35` }, bgStyle]} />
+        <Animated.View style={iconStyle}>
           <Ionicons
             name={(focused ? iconActive : iconInactive) as any}
             size={22}
             color={focused ? theme.accent : theme.subtext}
           />
         </Animated.View>
-        {focused && (
-          <Text style={[styles.label, { color: theme.accent }]}>
-            {label}
-          </Text>
-        )}
-      </Animated.View>
+      </View>
+      <Text style={[styles.label, { color: focused ? theme.accent : theme.subtext, opacity: focused ? 1 : 0.5 }]}>
+        {label}
+      </Text>
     </View>
   );
 }
@@ -136,22 +127,21 @@ const styles = StyleSheet.create({
   iconWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
-    flex: 1,
-    paddingTop: 4,
+    gap: 3,
   },
-  pill: {
-    flexDirection: 'row',
+  iconContainer: {
+    width: 44,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
+  },
+  iconBg: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 12,
     borderWidth: 1,
-    gap: 6,
-    overflow: 'hidden',
   },
   label: {
-    fontSize: 12,
+    fontSize: 9,
     fontWeight: '700',
     letterSpacing: 0.3,
   },
