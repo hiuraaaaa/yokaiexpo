@@ -51,7 +51,11 @@ export default function KomikCard({ komik, onPress, width, showType = true }: Pr
           style={StyleSheet.absoluteFillObject}
           contentFit="cover"
         />
-        <LinearGradient colors={['transparent', 'rgba(0,0,0,0.65)']} style={styles.gradient} />
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.85)']}
+          locations={[0.4, 0.7, 1]}
+          style={styles.gradient}
+        />
 
         {/* Status badge */}
         {komik.status ? (
@@ -103,11 +107,11 @@ export default function KomikCard({ komik, onPress, width, showType = true }: Pr
 const styles = StyleSheet.create({
   posterWrapper: {
     aspectRatio: 2 / 3,
-    borderRadius: 10,
+    borderRadius: 0,
     overflow: 'hidden',
   },
   gradient: {
-    position: 'absolute', bottom: 0, left: 0, right: 0, height: '45%',
+    position: 'absolute', bottom: 0, left: 0, right: 0, height: '60%',
   },
   statusBadge: {
     position: 'absolute', top: 6, right: 6,
