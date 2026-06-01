@@ -10,7 +10,7 @@ const LEVEL_COLORS = [
   '#f59e0b', // 5 Weeb — amber
   '#f97316', // 6 Anime Freak — orange
   '#ef4444', // 7 Legend Wibu — red
-  '#ec4899', // 8 Otaku Master — pink
+  '#ec4879', // 8 Otaku Master — pink
 ];
 
 export function LevelBadge({ xp, size = 'md' }: { xp: number; size?: 'sm' | 'md' | 'lg' }) {
