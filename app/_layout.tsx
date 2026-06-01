@@ -81,7 +81,7 @@ function AppLayout() {
         <Stack.Screen name="read/[slug]"   options={{ animation: 'slide_from_bottom', gestureEnabled: false }} />
       </Stack>
       {__DEV__ && <DebugOverlay />}
-      <OTADebug />
+      {__DEV__ && <OTADebug />}
     </>
   );
 }
