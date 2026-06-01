@@ -123,7 +123,6 @@ function RankItem({ komik, index, onPress }: { komik: Komik; index: number; onPr
           borderColor: index < 3 ? theme.accentDim : theme.border,
         }}
       >
-        {/* BG image blur */}
         <Image
           source={{ uri: komik.image_cover || komik.image_poster }}
           style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '55%', opacity: 0.5 }}
@@ -134,8 +133,6 @@ function RankItem({ komik, index, onPress }: { komik: Komik; index: number; onPr
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
           style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '75%' }}
         />
-
-        {/* Rank badge */}
         <View style={{
           width: 44, height: 44, borderRadius: 22,
           alignItems: 'center', justifyContent: 'center',
@@ -146,7 +143,6 @@ function RankItem({ komik, index, onPress }: { komik: Komik; index: number; onPr
             {index + 1}
           </Text>
         </View>
-
         <View style={{ flex: 1, zIndex: 1 }}>
           <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }} numberOfLines={1}>
             {komik.title}
@@ -200,7 +196,6 @@ export default function HomeScreen() {
 
   const heroRef = useRef<ScrollView>(null);
 
-  // Announcements dari Firestore
   useEffect(() => {
     const unsub = firestore()
       .collection('announcements')
@@ -213,7 +208,6 @@ export default function HomeScreen() {
     return unsub;
   }, []);
 
-  // Auto-scroll hero carousel
   useEffect(() => {
     if (heroItems.length === 0) return;
     const itv = setInterval(() => {
@@ -235,7 +229,6 @@ export default function HomeScreen() {
       setPopuler(populerData);
       setTop(topRes.data ?? []);
       setRekomendasi(rekomenRes.data ?? []);
-
       const pool = [...populerData, ...latestData].filter(k => k.image_cover || k.image_poster);
       setHeroItems(shuffleArray(pool).slice(0, 8));
     } catch (e) {
@@ -249,7 +242,6 @@ export default function HomeScreen() {
   useEffect(() => { load(); }, []);
 
   const onRefresh = () => { setRefreshing(true); load(); };
-
   const goDetail = (komik: Komik) => router.push(`/detail/${getKomikParam(komik)}`);
 
   const handleHeroNext = () => {
@@ -274,12 +266,10 @@ export default function HomeScreen() {
   };
 
   const visibleAnnouncements = announcements.filter(a => !dismissedIds.has(a.id));
-  const currentHero = heroItems[heroIndex];
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
 
-      {/* Copy Toast */}
       {copyToast && (
         <Animated.View
           entering={FadeIn.duration(200)}
@@ -298,11 +288,8 @@ export default function HomeScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
         contentContainerStyle={{ paddingBottom: 100 }}
       >
-
         {/* ── Hero Carousel ── */}
         <View style={{ width, height: width * 0.72, backgroundColor: theme.card }}>
-
-          {/* Top bar — logo + search */}
           <SafeAreaView edges={['top']} style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 8 }}>
               <Image
@@ -310,9 +297,7 @@ export default function HomeScreen() {
                 style={{ width: 38, height: 38 }}
                 contentFit="contain"
               />
-              <View style={{ flex: 1, marginHorizontal: 12 }}>
-                <Text style={{ color: theme.text, fontSize: 18, fontWeight: '900', letterSpacing: 0.5 }}>{APP_NAME}</Text>
-              </View>
+              <View style={{ flex: 1, marginHorizontal: 12 }} />
               <TouchableOpacity
                 onPress={() => { Haptics.selectionAsync(); setSearchOpen(true); }}
                 style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.35)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }}
@@ -373,7 +358,6 @@ export default function HomeScreen() {
                 ))}
               </ScrollView>
 
-              {/* Counter + next button */}
               {heroItems.length > 0 && (
                 <View style={{ position: 'absolute', bottom: 28, right: 20, flexDirection: 'row', alignItems: 'center', gap: 8, zIndex: 20 }}>
                   <Text style={{ color: 'rgba(255,255,255,0.6)', fontWeight: '700', fontSize: 10 }}>
@@ -451,21 +435,21 @@ export default function HomeScreen() {
           </Animated.View>
         ) : null}
 
+        {/* ── Rekomendasi ── */}
+        {!loading && rekomendasi.length > 0 ? (
+          <Animated.View entering={FadeInDown.delay(180).duration(400)} style={{ marginTop: 28 }}>
+            <SectionHeader title="Rekomendasi" subtitle="Pilihan untuk kamu" />
+            <HorizontalRow data={rekomendasi} onPress={goDetail} />
+          </Animated.View>
+        ) : null}
+
         {/* ── Top Ranking ── */}
         {!loading && top.length > 0 ? (
-          <Animated.View entering={FadeInDown.delay(180).duration(400)} style={{ marginTop: 28, paddingHorizontal: 16 }}>
+          <Animated.View entering={FadeInDown.delay(240).duration(400)} style={{ marginTop: 28, paddingHorizontal: 16 }}>
             <SectionHeader title="Top Ranking" subtitle="Rating tertinggi" />
             {top.slice(0, 10).map((item, idx) => (
               <RankItem key={item.id} komik={item} index={idx} onPress={() => goDetail(item)} />
             ))}
-          </Animated.View>
-        ) : null}
-
-        {/* ── Rekomendasi ── */}
-        {!loading && rekomendasi.length > 0 ? (
-          <Animated.View entering={FadeInDown.delay(240).duration(400)} style={{ marginTop: 28 }}>
-            <SectionHeader title="Rekomendasi" subtitle="Pilihan untuk kamu" />
-            <HorizontalRow data={rekomendasi} onPress={goDetail} />
           </Animated.View>
         ) : null}
 
