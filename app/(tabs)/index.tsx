@@ -3,7 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity,
   Dimensions, RefreshControl, StyleSheet,
 } from 'react-native';
-import FastImage from 'react-native-fast-image';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -27,10 +27,10 @@ function HeroBanner({ komik, onPress }: { komik: Komik; onPress: () => void }) {
   const theme = useTheme();
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.9} style={styles.heroWrapper}>
-      <FastImage
-        source={{ uri: komik.image_cover || komik.image_poster, priority: FastImage.priority.high }}
+      <Image
+        source={{ uri: komik.image_cover || komik.image_poster, priority: 'high' }}
         style={styles.heroImage}
-        resizeMode={FastImage.resizeMode.cover}
+        contentFit="cover"
       />
       <LinearGradient
         colors={['transparent', `${theme.bg}dd`, theme.bg]}
@@ -179,10 +179,10 @@ export default function HomeScreen() {
                 <TouchableOpacity key={item.id} onPress={() => goDetail(item)} activeOpacity={0.85}>
                   <View style={{ width: CARD_W + 10 }}>
                     <View style={{ position: 'relative' }}>
-                      <FastImage
+                      <Image
                         source={{ uri: item.image_poster }}
                         style={{ width: CARD_W + 10, aspectRatio: 2 / 3, borderRadius: 10 }}
-                        resizeMode={FastImage.resizeMode.cover}
+                        contentFit="cover"
                       />
                       {/* Rank number */}
                       <View style={[styles.rankBadge, { backgroundColor: theme.accent }]}>
