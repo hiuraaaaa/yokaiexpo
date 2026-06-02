@@ -9,19 +9,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { FlashList } from '@shopify/flash-list';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, withRepeat, cancelAnimation, interpolate } from 'react-native-reanimated';
+import Animated, {
+  useSharedValue, useAnimatedStyle, withTiming,
+  withRepeat, cancelAnimation, interpolate,
+} from 'react-native-reanimated';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import * as Haptics from 'expo-haptics';
 
 import { api, decodeSlug } from '@/hooks/api';
 import { useTheme } from '@/hooks/theme';
 import { progressStorage, readerSettingsStorage } from '@/hooks/storage';
+import { useAutoScroll, AUTO_SCROLL_SPEEDS, SpeedIndex } from '@/hooks/useAutoScroll';
 import { ChapterPage, ReaderSettings } from '@/types';
 
 const { width } = Dimensions.get('window');
-
-// Tinggi default manhwa portrait — TIDAK PERNAH BERUBAH setelah FlashList mount
-// Ini kunci supaya scroll stabil: estimatedItemSize harus konstan
 const DEFAULT_IMG_H = Math.round(width * 1.5);
 
 const BG_COLOR: Record<ReaderSettings['background'], string> = {
@@ -30,11 +31,10 @@ const BG_COLOR: Record<ReaderSettings['background'], string> = {
   sepia: '#f4ecd8',
 };
 
-// ─── Height cache — module-level, persist antar chapter ──────────────────────
 const imgHeightCache = new Map<string, number>();
 
-// ─── Shimmer placeholder ──────────────────────────────────────────────────────
-function ShimmerPlaceholder({ h, readerBg }: { h: number; readerBg: string }) {
+// ─── Shimmer ──────────────────────────────────────────────────────────────────
+function ShimmerPlaceholder({ readerBg }: { readerBg: string }) {
   const shimmer = useSharedValue(0);
 
   useEffect(() => {
@@ -42,28 +42,20 @@ function ShimmerPlaceholder({ h, readerBg }: { h: number; readerBg: string }) {
     return () => cancelAnimation(shimmer);
   }, []);
 
-  const baseColor  = readerBg === '#000' ? 20  : readerBg === '#fff' ? 220 : 210;
-  const glowColor  = readerBg === '#000' ? 40  : readerBg === '#fff' ? 200 : 195;
+  const base = readerBg === '#000' ? 20 : readerBg === '#fff' ? 220 : 210;
+  const glow = readerBg === '#000' ? 42 : readerBg === '#fff' ? 200 : 192;
 
-  const animStyle = useAnimatedStyle(() => ({
-    backgroundColor: `rgb(${interpolate(shimmer.value, [0, 1], [baseColor, glowColor])},${interpolate(shimmer.value, [0, 1], [baseColor, glowColor])},${interpolate(shimmer.value, [0, 1], [baseColor, glowColor])})`,
-  }));
+  const animStyle = useAnimatedStyle(() => {
+    const v = Math.round(interpolate(shimmer.value, [0, 1], [base, glow]));
+    return { backgroundColor: `rgb(${v},${v},${v})` };
+  });
 
   return <Animated.View style={[StyleSheet.absoluteFillObject, animStyle]} />;
 }
 
 // ─── Page Item ────────────────────────────────────────────────────────────────
-// KRITIS: komponen ini TIDAK BOLEH trigger re-render parent
-// onHeightKnown → ref callback, bukan setState di parent
-function PageItem({
-  page, readerBg, onHeightKnown,
-}: {
-  page: ChapterPage;
-  readerBg: string;
-  onHeightKnown: (url: string, h: number) => void;
-}) {
+function PageItem({ page, readerBg }: { page: ChapterPage; readerBg: string }) {
   const cached = imgHeightCache.get(page.url);
-  // State height hanya di dalam PageItem — tidak propagate ke parent
   const [imgH,   setImgH]  = useState<number>(cached ?? DEFAULT_IMG_H);
   const [loaded, setLoaded] = useState(!!cached);
 
@@ -72,22 +64,49 @@ function PageItem({
     if (iw && ih) {
       const h = Math.round((ih / iw) * width);
       imgHeightCache.set(page.url, h);
-      // Update height lokal — hanya item ini yang re-render, bukan seluruh list
       setImgH(h);
-      onHeightKnown(page.url, h);
     }
     setLoaded(true);
-  }, [page.url, onHeightKnown]);
+  }, [page.url]);
 
   return (
     <View style={{ width, height: imgH, backgroundColor: readerBg }}>
-      {!loaded && <ShimmerPlaceholder h={imgH} readerBg={readerBg} />}
+      {!loaded && <ShimmerPlaceholder readerBg={readerBg} />}
       <Image
         source={{ uri: page.url, priority: 'high', cachePolicy: 'memory-disk' }}
         style={{ width, height: imgH }}
         contentFit="contain"
         onLoad={handleLoad}
       />
+    </View>
+  );
+}
+
+// ─── Speed Picker ─────────────────────────────────────────────────────────────
+function SpeedPicker({ speedIdx, onSelect }: {
+  speedIdx: SpeedIndex;
+  onSelect: (i: SpeedIndex) => void;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={styles.speedPicker}>
+      {AUTO_SCROLL_SPEEDS.map((s, i) => {
+        const active = i === speedIdx;
+        return (
+          <TouchableOpacity
+            key={s.label}
+            onPress={() => { Haptics.selectionAsync(); onSelect(i as SpeedIndex); }}
+            style={[styles.speedBtn, {
+              backgroundColor: active ? theme.accent : 'rgba(255,255,255,0.08)',
+              borderColor:     active ? theme.accent : 'rgba(255,255,255,0.15)',
+            }]}
+          >
+            <Text style={[styles.speedBtnText, { color: active ? '#000' : 'rgba(255,255,255,0.7)' }]}>
+              {s.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }
@@ -186,20 +205,21 @@ export default function ReaderScreen() {
   const [showSettings, setShowSettings] = useState(false);
   const [currentPage,  setCurrentPage]  = useState(0);
   const [listKey,      setListKey]      = useState(chapterId);
+  const [showSpeed,    setShowSpeed]    = useState(false);
 
-  const listRef   = useRef<FlashList<ChapterPage>>(null);
-  const uiOpacity = useSharedValue(1);
-  // currentPage di ref untuk save progress tanpa re-render
+  const listRef       = useRef<FlashList<ChapterPage>>(null);
+  const uiOpacity     = useSharedValue(1);
   const currentPageRef = useRef(0);
 
   const readerBg = BG_COLOR[settings.background];
 
-  // KRITIS: onHeightKnown pakai ref callback — TIDAK setState di parent
-  // Kalau setState, setiap gambar load = parent re-render = FlashList recalculate = scroll loncat
-  const handleHeightKnown = useCallback((_url: string, _h: number) => {
-    // Height sudah di-cache di imgHeightCache, PageItem sudah update dirinya sendiri
-    // Parent tidak perlu tahu — estimatedItemSize tetap DEFAULT_IMG_H = stabil
-  }, []);
+  // ── Auto scroll ────────────────────────────────────────────────────────────
+  const autoScroll = useAutoScroll(listRef);
+
+  // Reset auto scroll saat ganti chapter
+  useEffect(() => {
+    autoScroll.reset();
+  }, [chapterId]);
 
   useEffect(() => {
     if (!chapterId) return;
@@ -223,9 +243,8 @@ export default function ReaderScreen() {
 
   useEffect(() => {
     return () => {
-      if (chapterId && pages.length > 0) {
+      if (chapterId && pages.length > 0)
         progressStorage.save(chapterId, currentPageRef.current, pages.length);
-      }
     };
   }, [pages.length, chapterId]);
 
@@ -233,6 +252,8 @@ export default function ReaderScreen() {
     const next = !uiVisible;
     setUiVisible(next);
     uiOpacity.value = withTiming(next ? 1 : 0, { duration: 200 });
+    // Tutup speed picker kalau UI disembunyiin
+    if (!next) setShowSpeed(false);
   }, [uiVisible]);
 
   const updateSettings = useCallback((partial: Partial<ReaderSettings>) => {
@@ -247,12 +268,11 @@ export default function ReaderScreen() {
 
   const progress = pages.length > 0 ? ((currentPage + 1) / pages.length) * 100 : 0;
 
-  // renderItem stabil — deps tidak berubah selama sesi baca
   const renderItem = useCallback(({ item }: { item: ChapterPage }) => (
     <TouchableOpacity activeOpacity={1} onPress={toggleUI}>
-      <PageItem page={item} readerBg={readerBg} onHeightKnown={handleHeightKnown} />
+      <PageItem page={item} readerBg={readerBg} />
     </TouchableOpacity>
-  ), [readerBg, toggleUI, handleHeightKnown]);
+  ), [readerBg, toggleUI]);
 
   const handleViewableChange = useCallback(({ viewableItems }: any) => {
     if (viewableItems.length > 0) {
@@ -285,13 +305,18 @@ export default function ReaderScreen() {
           key={listKey}
           ref={listRef}
           data={pages}
-          // KONSTAN — tidak pernah berubah = tidak ada scroll jump
           estimatedItemSize={DEFAULT_IMG_H}
           keyExtractor={item => `${listKey}-${item.index}`}
           showsVerticalScrollIndicator={false}
           bounces={false}
           overScrollMode="never"
           drawDistance={800}
+          // ── Auto scroll handlers ──
+          onScroll={autoScroll.onScroll}
+          onScrollBeginDrag={autoScroll.onScrollBeginDrag}
+          onScrollEndDrag={autoScroll.onScrollEndDrag}
+          scrollEventThrottle={16}
+          // ─────────────────────────
           onViewableItemsChanged={handleViewableChange}
           viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
           renderItem={renderItem}
@@ -314,7 +339,7 @@ export default function ReaderScreen() {
         />
       )}
 
-      {/* Top Bar */}
+      {/* ── Top Bar ── */}
       <Animated.View style={[styles.topBar, { paddingTop: insets.top + 8 }, navStyle]}>
         <BlurView intensity={50} tint="dark" style={StyleSheet.absoluteFillObject} />
         <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.45)' }]} />
@@ -332,15 +357,57 @@ export default function ReaderScreen() {
         </TouchableOpacity>
       </Animated.View>
 
-      {/* Bottom Progress */}
+      {/* ── Bottom Bar: Progress + Auto Scroll Control ── */}
       {pages.length > 0 && (
-        <Animated.View style={[styles.progressBar, { bottom: insets.bottom + 16 }, navStyle]}>
+        <Animated.View style={[styles.bottomBar, { bottom: insets.bottom + 12 }, navStyle]}>
           <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFillObject} />
-          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 20 }]} />
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: theme.accent }]} />
+          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 24 }]} />
+
+          {/* Speed picker — muncul di atas bottom bar */}
+          {showSpeed && (
+            <SpeedPicker
+              speedIdx={autoScroll.speedIdx}
+              onSelect={(i) => { autoScroll.setSpeed(i); }}
+            />
+          )}
+
+          <View style={styles.bottomContent}>
+            {/* Progress bar + persen */}
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: theme.accent }]} />
+            </View>
+            <Text style={[styles.progressText, { color: theme.accent }]}>
+              {Math.round(progress)}%
+            </Text>
+
+            {/* Divider */}
+            <View style={styles.divider} />
+
+            {/* Tombol kecepatan */}
+            <TouchableOpacity
+              onPress={() => { Haptics.selectionAsync(); setShowSpeed(v => !v); }}
+              style={[styles.autoBtn, {
+                backgroundColor: showSpeed ? `${theme.accent}25` : 'transparent',
+                borderColor: showSpeed ? theme.accent : 'rgba(255,255,255,0.2)',
+              }]}
+            >
+              <Text style={[styles.autoBtnSpeed, { color: autoScroll.isPlaying ? theme.accent : 'rgba(255,255,255,0.6)' }]}>
+                {autoScroll.speedLabel}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Tombol Play / Pause */}
+            <TouchableOpacity
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); autoScroll.toggle(); }}
+              style={[styles.playBtn, { backgroundColor: autoScroll.isPlaying ? theme.accent : 'rgba(255,255,255,0.12)' }]}
+            >
+              <Ionicons
+                name={autoScroll.isPlaying ? 'pause' : 'play'}
+                size={16}
+                color={autoScroll.isPlaying ? '#000' : '#fff'}
+              />
+            </TouchableOpacity>
           </View>
-          <Text style={[styles.progressText, { color: theme.accent }]}>{Math.round(progress)}%</Text>
         </Animated.View>
       )}
 
@@ -355,22 +422,61 @@ export default function ReaderScreen() {
 }
 
 const styles = StyleSheet.create({
-  container:    { flex: 1 },
+  container: { flex: 1 },
   topBar: {
     position: 'absolute', top: 0, left: 0, right: 0,
     flexDirection: 'row', alignItems: 'center',
     paddingBottom: 14, paddingHorizontal: 12, overflow: 'hidden',
   },
-  navBtn:       { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.08)' },
-  topTitle:     { color: '#fff', fontSize: 14, fontWeight: '700' },
-  topSub:       { color: 'rgba(255,255,255,0.45)', fontSize: 10, marginTop: 2 },
-  progressBar: {
-    position: 'absolute', left: 20, right: 20,
-    paddingVertical: 10, paddingHorizontal: 16,
-    borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 10, overflow: 'hidden',
+  navBtn: {
+    width: 40, height: 40, alignItems: 'center', justifyContent: 'center',
+    borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.08)',
   },
-  progressTrack: { flex: 1, height: 4, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 2, overflow: 'hidden' },
-  progressFill:  { height: '100%', borderRadius: 2 },
-  progressText:  { fontSize: 11, fontWeight: '800', minWidth: 36, textAlign: 'right' },
-  backToDetail:  { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, borderWidth: 1, marginTop: 8 },
+  topTitle: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  topSub:   { color: 'rgba(255,255,255,0.45)', fontSize: 10, marginTop: 2 },
+
+  // ── Bottom ──
+  bottomBar: {
+    position: 'absolute', left: 16, right: 16,
+    borderRadius: 24, overflow: 'hidden',
+  },
+  bottomContent: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 14, paddingVertical: 10, gap: 10,
+  },
+  progressTrack: {
+    flex: 1, height: 4, backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 2, overflow: 'hidden',
+  },
+  progressFill: { height: '100%', borderRadius: 2 },
+  progressText: { fontSize: 11, fontWeight: '800', minWidth: 32, textAlign: 'right' },
+  divider:      { width: 1, height: 18, backgroundColor: 'rgba(255,255,255,0.15)' },
+
+  // ── Auto scroll controls ──
+  autoBtn: {
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center',
+  },
+  autoBtnSpeed: { fontSize: 11, fontWeight: '800' },
+  playBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center',
+  },
+
+  // ── Speed picker ──
+  speedPicker: {
+    flexDirection: 'row', gap: 6,
+    paddingHorizontal: 14, paddingTop: 12, paddingBottom: 6,
+  },
+  speedBtn: {
+    flex: 1, paddingVertical: 8, borderRadius: 10, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  speedBtnText: { fontSize: 11, fontWeight: '800' },
+
+  backToDetail: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 20, paddingVertical: 10,
+    borderRadius: 12, borderWidth: 1, marginTop: 8,
+  },
 });
