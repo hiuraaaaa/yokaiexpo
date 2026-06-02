@@ -20,6 +20,7 @@ import { api, getKomikParam, shuffleArray } from '@/hooks/api';
 import { useTheme } from '@/hooks/theme';
 import { Komik } from '@/types';
 import { APP_NAME } from '@/constants';
+import { prefetchHome, getHomeCache, clearHomeCache } from '@/hooks/homeCache';
 import KomikCard from '@/components/KomikCard';
 import SearchModal from '@/components/SearchModal';
 import { HeroSkeleton, SectionSkeleton } from '@/components/Skeleton';
@@ -187,7 +188,8 @@ export default function HomeScreen() {
   const [rekomendasi, setRekomendasi] = useState<Komik[]>([]);
   const [heroItems,   setHeroItems]   = useState<Komik[]>([]);
   const [heroIndex,   setHeroIndex]   = useState(0);
-  const [loading,     setLoading]     = useState(true);
+  // Kalau cache sudah ada dari splash, langsung false — skip skeleton
+  const [loading,     setLoading]     = useState(() => getHomeCache() === null);
   const [refreshing,  setRefreshing]  = useState(false);
   const [searchOpen,  setSearchOpen]  = useState(false);
   const [copyToast,   setCopyToast]   = useState(false);
@@ -220,28 +222,40 @@ export default function HomeScreen() {
     return () => clearInterval(itv);
   }, [heroItems.length]);
 
-  const load = useCallback(async () => {
+  const applyData = useCallback((data: { latest: Komik[]; populer: Komik[]; top: Komik[]; rekomendasi: Komik[]; heroItems: Komik[] }) => {
+    setLatest(data.latest);
+    setPopuler(data.populer);
+    setTop(data.top);
+    setRekomendasi(data.rekomendasi);
+    setHeroItems(data.heroItems);
+  }, []);
+
+  const load = useCallback(async (isRefresh = false) => {
     try {
-      const [latestRes, populerRes, topRes, rekomenRes] = await api.home();
-      const latestData  = latestRes.data  ?? [];
-      const populerData = populerRes.data ?? [];
-      setLatest(latestData);
-      setPopuler(populerData);
-      setTop(topRes.data ?? []);
-      setRekomendasi(rekomenRes.data ?? []);
-      const pool = [...populerData, ...latestData].filter(k => k.image_cover || k.image_poster);
-      setHeroItems(shuffleArray(pool).slice(0, 8));
+      // Cek cache dulu — kalau ada (dari splash), langsung pakai, no loading state
+      const cached = getHomeCache();
+      if (cached && !isRefresh) {
+        applyData(cached);
+        setLoading(false);
+        return;
+      }
+
+      // Refresh: buang cache lama, fetch ulang
+      if (isRefresh) clearHomeCache();
+
+      const data = await prefetchHome();
+      applyData(data);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [applyData]);
 
   useEffect(() => { load(); }, []);
 
-  const onRefresh = () => { setRefreshing(true); load(); };
+  const onRefresh = () => { setRefreshing(true); load(true); };
   const goDetail = (komik: Komik) => router.push(`/detail/${getKomikParam(komik)}`);
 
   const handleHeroNext = () => {
