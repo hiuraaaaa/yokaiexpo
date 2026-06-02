@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, Dimensions, ActivityIndicator,
+  StyleSheet, Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,11 +13,13 @@ import { useTheme } from '@/hooks/theme';
 import { Komik, Genre } from '@/types';
 import { KOMIK_TYPES } from '@/constants';
 import KomikCard from '@/components/KomikCard';
+import { KomikCardSkeleton } from '@/components/Skeleton';
 import SearchModal from '@/components/SearchModal';
 
 const { width } = Dimensions.get('window');
 const NUM_COLS  = 4;
 const CARD_W    = (width - 16 * 2 - 8 * (NUM_COLS - 1)) / NUM_COLS;
+const SKELETON_COUNT = 16; // 4 cols x 4 rows
 
 type FilterMode = 'latest' | 'populer' | 'top' | 'type' | 'genre' | 'colored';
 
@@ -30,21 +32,59 @@ const FILTER_TABS: { key: FilterMode; label: string; icon: any }[] = [
   { key: 'colored', label: 'Berwarna', icon: 'color-palette-outline' },
 ];
 
+// ─── Skeleton Grid ────────────────────────────────────────────────────────────
+
+function SkeletonGrid() {
+  return (
+    <View style={styles.skeletonGrid}>
+      {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
+        <View
+          key={i}
+          style={{
+            width: CARD_W,
+            marginRight: (i % NUM_COLS) < NUM_COLS - 1 ? 8 : 0,
+            marginBottom: 14,
+          }}
+        >
+          <KomikCardSkeleton cardWidth={CARD_W} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
+
 export default function ExploreScreen() {
   const theme  = useTheme();
   const router = useRouter();
 
   const [data,        setData]        = useState<Komik[]>([]);
   const [genres,      setGenres]      = useState<Genre[]>([]);
-  const [loading,     setLoading]     = useState(true);
+  // "initialLoad" = belum ada data sama sekali (first open / ganti filter)
+  // "refreshing"  = ada data lama, lagi fetch yang baru (di-bg, user masih bisa liat)
+  const [initialLoad, setInitialLoad] = useState(true);
+  const [refreshing,  setRefreshing]  = useState(false);
   const [filterMode,  setFilterMode]  = useState<FilterMode>('latest');
   const [activeType,  setActiveType]  = useState('manhwa');
   const [activeGenre, setActiveGenre] = useState('');
   const [searchOpen,  setSearchOpen]  = useState(false);
   const [page,        setPage]        = useState(1);
 
-  const loadData = useCallback(async (mode: FilterMode, type: string, genre: string, pg = 1) => {
-    setLoading(true);
+  // Track filter state buat cancel stale response
+  const fetchId = useRef(0);
+
+  const loadData = useCallback(async (
+    mode: FilterMode, type: string, genre: string, pg: number, hasExistingData: boolean,
+  ) => {
+    const id = ++fetchId.current;
+
+    if (hasExistingData) {
+      setRefreshing(true);
+    } else {
+      setInitialLoad(true);
+    }
+
     try {
       let res;
       if (mode === 'latest')       res = await api.latest();
@@ -54,20 +94,37 @@ export default function ExploreScreen() {
       else if (mode === 'genre')   res = await api.byGenre(genre);
       else if (mode === 'colored') res = await api.komikBerwarna(pg);
       else                         res = await api.latest();
+
+      // Abaikan kalau sudah ada request lebih baru
+      if (id !== fetchId.current) return;
+
       setData(res?.data ?? []);
-    } catch { setData([]); }
-    finally  { setLoading(false); }
+    } catch {
+      if (id !== fetchId.current) return;
+      setData([]);
+    } finally {
+      if (id !== fetchId.current) return;
+      setInitialLoad(false);
+      setRefreshing(false);
+    }
   }, []);
 
   useEffect(() => {
-    loadData(filterMode, activeType, activeGenre, page);
+    // Kalau filter berubah, clear data lama supaya skeleton muncul
+    setData([]);
+    setInitialLoad(true);
+    loadData(filterMode, activeType, activeGenre, page, false);
   }, [filterMode, activeType, activeGenre, page]);
 
   useEffect(() => {
     api.genres().then(r => setGenres(r.data ?? []));
   }, []);
 
-  const setFilter = (mode: FilterMode) => { setFilterMode(mode); setPage(1); };
+  const setFilter = (mode: FilterMode) => {
+    if (mode === filterMode) return; // no-op kalau sama
+    setFilterMode(mode);
+    setPage(1);
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
@@ -76,12 +133,18 @@ export default function ExploreScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={[styles.title, { color: theme.text }]}>Explore</Text>
-          <TouchableOpacity
-            onPress={() => setSearchOpen(true)}
-            style={[styles.iconBtn, { backgroundColor: theme.card, borderColor: theme.border }]}
-          >
-            <Ionicons name="search-outline" size={18} color={theme.subtext} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {/* Indikator refresh kecil — ga ganggu tapi keliatan ada aktivitas */}
+            {refreshing && (
+              <View style={[styles.refreshDot, { backgroundColor: theme.accent }]} />
+            )}
+            <TouchableOpacity
+              onPress={() => setSearchOpen(true)}
+              style={[styles.iconBtn, { backgroundColor: theme.card, borderColor: theme.border }]}
+            >
+              <Ionicons name="search-outline" size={18} color={theme.subtext} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Filter tabs */}
@@ -154,11 +217,14 @@ export default function ExploreScreen() {
 
       </SafeAreaView>
 
-      {loading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={theme.accent} size="large" />
-        </View>
+      {/* Content area */}
+      {initialLoad ? (
+        // Belum ada data → tampilin skeleton grid
+        <ScrollView contentContainerStyle={{ padding: 16 }}>
+          <SkeletonGrid />
+        </ScrollView>
       ) : (
+        // Ada data → tampilin langsung, refresh indicator cuma dot kecil di header
         <FlashList
           data={data}
           numColumns={NUM_COLS}
@@ -195,4 +261,6 @@ const styles = StyleSheet.create({
   filterRow:     { paddingHorizontal: 16, paddingBottom: 12, gap: 8 },
   filterTab:     { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
   filterTabText: { fontSize: 12, fontWeight: '700' },
+  skeletonGrid:  { flexDirection: 'row', flexWrap: 'wrap' },
+  refreshDot:    { width: 7, height: 7, borderRadius: 4, opacity: 0.8 },
 });
