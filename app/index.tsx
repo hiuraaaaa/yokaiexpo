@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { useTheme } from '@/hooks/theme';
+import { prefetchHome } from '@/hooks/homeCache';
 import Animated, {
   useSharedValue, useAnimatedStyle,
   withTiming, withDelay, withSequence,
@@ -31,6 +32,9 @@ export default function SplashScreen() {
   const navigate = () => router.replace('/(tabs)');
 
   useEffect(() => {
+    // Langsung prefetch di background — tidak nunggu selesai
+    prefetchHome().catch(() => {}); // error di-handle di home screen
+
     // 1. Logo muncul
     logoOpacity.value  = withTiming(1, { duration: 500, easing: Easing.out(Easing.cubic) });
     logoScale.value    = withSpring(1, { damping: 14, stiffness: 120 });
