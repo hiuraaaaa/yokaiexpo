@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, Dimensions, TouchableOpacity,
-  ActivityIndicator, Modal, ScrollView, StatusBar,
+  ActivityIndicator, Modal, StatusBar,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -22,26 +22,60 @@ import { ChapterPage, ReaderSettings } from '@/types';
 
 const { width, height } = Dimensions.get('window');
 
+// Aspect ratio default manhwa = portrait panjang (2:3 → 1.5)
+// Ini dipakai sebagai estimatedItemSize dan placeholder sebelum gambar load
+const DEFAULT_ASPECT = 1.5;
+const DEFAULT_IMG_H  = Math.round(width * DEFAULT_ASPECT);
+
 const BG_COLOR: Record<ReaderSettings['background'], string> = {
   black: '#000',
   white: '#fff',
   sepia: '#f4ecd8',
 };
 
+// ─── Cache ukuran gambar ──────────────────────────────────────────────────────
+// Disimpan di luar komponen supaya persist antar render & ga bikin re-fetch
+const imgHeightCache = new Map<string, number>();
+
 // ─── Page Item ────────────────────────────────────────────────────────────────
-function PageItem({ page, readerBg }: { page: ChapterPage; readerBg: string }) {
-  const [imgH, setImgH] = useState(height * 0.75);
+function PageItem({
+  page, readerBg, onHeightKnown,
+}: {
+  page: ChapterPage;
+  readerBg: string;
+  onHeightKnown: (url: string, h: number) => void;
+}) {
+  // Pakai cached height kalau ada, baru fallback ke default
+  const cachedH  = imgHeightCache.get(page.url);
+  const [imgH, setImgH] = useState<number>(cachedH ?? DEFAULT_IMG_H);
+  const [loaded, setLoaded] = useState(!!cachedH); // kalau cache ada, langsung "loaded"
+
+  const handleLoad = useCallback((e: any) => {
+    const { width: iw, height: ih } = e.source;
+    if (iw && ih) {
+      const h = Math.round((ih / iw) * width);
+      imgHeightCache.set(page.url, h);
+      setImgH(h);
+      onHeightKnown(page.url, h);
+    }
+    setLoaded(true);
+  }, [page.url, onHeightKnown]);
 
   return (
-    <View style={{ width, backgroundColor: readerBg }}>
+    // Height sudah diketahui dari awal (cache atau default) → tidak ada layout shift
+    <View style={{ width, height: imgH, backgroundColor: readerBg }}>
+      {/* Placeholder shimmer tipis supaya ga keliatan blank */}
+      {!loaded && (
+        <View style={[StyleSheet.absoluteFillObject, {
+          backgroundColor: readerBg === '#000' ? '#111' : readerBg === '#fff' ? '#eee' : '#e8dcc8',
+        }]} />
+      )}
       <Image
         source={{ uri: page.url, priority: 'high', cachePolicy: 'memory-disk' }}
         style={{ width, height: imgH }}
         contentFit="contain"
-        onLoad={e => {
-          const { width: iw, height: ih } = e.source;
-          if (iw && ih) setImgH((ih / iw) * width);
-        }}
+        onLoad={handleLoad}
+        // Jangan pakai recyclingKey — bikin gambar flicker saat scroll cepat
       />
     </View>
   );
@@ -73,14 +107,12 @@ function SettingsSheet({ visible, settings, onClose, onChange }: {
               padding: 24, paddingBottom: 48,
               borderWidth: 1, borderColor: theme.border,
             }}>
-              {/* Handle */}
               <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.15)', alignSelf: 'center', marginBottom: 24 }} />
 
               <Text style={{ color: theme.text, fontWeight: '900', fontSize: 16, marginBottom: 20 }}>
                 Pengaturan Baca
               </Text>
 
-              {/* Background */}
               <Text style={{ color: theme.subtext, fontSize: 10, fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 12 }}>
                 Background
               </Text>
@@ -107,7 +139,6 @@ function SettingsSheet({ visible, settings, onClose, onChange }: {
                 ))}
               </View>
 
-              {/* Keep screen on */}
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, borderTopWidth: 1, borderTopColor: theme.border }}>
                 <View>
                   <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>Layar Tetap Nyala</Text>
@@ -154,41 +185,53 @@ export default function ReaderScreen() {
   const [settings,     setSettings]     = useState<ReaderSettings>(() => readerSettingsStorage.get());
   const [showSettings, setShowSettings] = useState(false);
   const [currentPage,  setCurrentPage]  = useState(0);
+  const [listKey,      setListKey]      = useState(chapterId);
 
-  // Key trick: setiap load chapter baru, key berubah → FlashList re-mount dari scratch
-  // Ini fix bug scroll ngulang dari atas
-  const [listKey, setListKey] = useState(chapterId);
+  // Map url → height yang sudah diketahui, trigger re-render FlashList
+  // supaya estimatedItemSize akurat setelah gambar pertama load
+  const [knownHeights, setKnownHeights] = useState<Record<string, number>>({});
 
   const listRef   = useRef<FlashList<ChapterPage>>(null);
   const uiOpacity = useSharedValue(1);
 
   const readerBg = BG_COLOR[settings.background];
 
-  // Load pages
+  // Callback dari PageItem saat height diketahui
+  const handleHeightKnown = useCallback((url: string, h: number) => {
+    setKnownHeights(prev => {
+      if (prev[url] === h) return prev; // no-op kalau sama
+      return { ...prev, [url]: h };
+    });
+  }, []);
+
+  // estimatedItemSize = rata-rata dari semua height yang sudah diketahui
+  // Makin banyak gambar yang load, makin akurat → scroll makin stabil
+  const estimatedItemSize = useMemo(() => {
+    const vals = Object.values(knownHeights);
+    if (vals.length === 0) return DEFAULT_IMG_H;
+    return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+  }, [knownHeights]);
+
   useEffect(() => {
     if (!chapterId) return;
     setLoading(true);
     setPages([]);
     setCurrentPage(0);
-    setListKey(chapterId); // force re-mount FlashList
+    setKnownHeights({});
+    setListKey(chapterId);
 
     api.chapter(chapterId)
-      .then(res => {
-        const data = res?.data ?? [];
-        setPages(data);
-      })
+      .then(res => setPages(res?.data ?? []))
       .catch(() => setPages([]))
       .finally(() => setLoading(false));
   }, [chapterId]);
 
-  // Keep screen awake
   useEffect(() => {
     if (settings.keepScreenOn) activateKeepAwakeAsync();
     else deactivateKeepAwake();
     return () => deactivateKeepAwake();
   }, [settings.keepScreenOn]);
 
-  // Save progress on unmount
   useEffect(() => {
     return () => {
       if (chapterId && pages.length > 0) {
@@ -216,6 +259,13 @@ export default function ReaderScreen() {
 
   const progress = pages.length > 0 ? ((currentPage + 1) / pages.length) * 100 : 0;
 
+  // renderItem di-memoize supaya FlashList ga re-render semua item saat state berubah
+  const renderItem = useCallback(({ item }: { item: ChapterPage }) => (
+    <TouchableOpacity activeOpacity={1} onPress={toggleUI}>
+      <PageItem page={item} readerBg={readerBg} onHeightKnown={handleHeightKnown} />
+    </TouchableOpacity>
+  ), [readerBg, toggleUI, handleHeightKnown]);
+
   return (
     <View style={[styles.container, { backgroundColor: readerBg }]}>
       <StatusBar hidden={!uiVisible} />
@@ -238,13 +288,14 @@ export default function ReaderScreen() {
           key={listKey}
           ref={listRef}
           data={pages}
-          // estimatedItemSize stabil — pakai rasio portrait standar
-          estimatedItemSize={Math.round((4 / 3) * width)}
+          estimatedItemSize={estimatedItemSize}
           keyExtractor={item => `${listKey}-${item.index}`}
           showsVerticalScrollIndicator={false}
-          // Matiin overscroll biar ga glitch di ujung
           bounces={false}
           overScrollMode="never"
+          // drawDistance lebih besar = pre-load gambar lebih jauh di luar viewport
+          // Default 250, naik ke 600 supaya gambar sudah siap sebelum user sampai
+          drawDistance={600}
           onViewableItemsChanged={({ viewableItems }) => {
             if (viewableItems.length > 0) {
               const idx = viewableItems[0].index ?? 0;
@@ -253,11 +304,7 @@ export default function ReaderScreen() {
             }
           }}
           viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
-          renderItem={({ item }) => (
-            <TouchableOpacity activeOpacity={1} onPress={toggleUI}>
-              <PageItem page={item} readerBg={readerBg} />
-            </TouchableOpacity>
-          )}
+          renderItem={renderItem}
           ListFooterComponent={() => (
             <View style={{ paddingVertical: 48, alignItems: 'center', backgroundColor: readerBg, gap: 10 }}>
               <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: `${theme.accent}20`, alignItems: 'center', justifyContent: 'center' }}>
@@ -277,7 +324,7 @@ export default function ReaderScreen() {
         />
       )}
 
-      {/* ── Top Bar ── */}
+      {/* Top Bar */}
       <Animated.View style={[styles.topBar, { paddingTop: insets.top + 8 }, navStyle]}>
         <BlurView intensity={50} tint="dark" style={StyleSheet.absoluteFillObject} />
         <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.45)' }]} />
@@ -298,20 +345,14 @@ export default function ReaderScreen() {
         </TouchableOpacity>
       </Animated.View>
 
-      {/* ── Bottom Progress ── */}
+      {/* Bottom Progress */}
       {pages.length > 0 && (
         <Animated.View style={[styles.progressBar, { bottom: insets.bottom + 16 }, navStyle]}>
           <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFillObject} />
           <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 20 }]} />
-
-          {/* Progress track */}
           <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, {
-              width: `${progress}%`,
-              backgroundColor: theme.accent,
-            }]} />
+            <View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: theme.accent }]} />
           </View>
-
           <Text style={[styles.progressText, { color: theme.accent }]}>
             {Math.round(progress)}%
           </Text>
