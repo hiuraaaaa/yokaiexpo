@@ -1,21 +1,21 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, Dimensions, ActivityIndicator, Alert,
+  StyleSheet, Dimensions, Alert,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { FlashList } from '@shopify/flash-list';
-import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
 import { api, extractKomikId, encodeSlug } from '@/hooks/api';
 import { useTheme } from '@/hooks/theme';
-import { favoritStorage } from '@/hooks/storage';
+import { favoritStorage, progressStorage } from '@/hooks/storage';
 import { KomikDetail, Chapter } from '@/types';
 import { DetailHeroSkeleton, ChapterItemSkeleton } from '@/components/Skeleton';
 
@@ -67,6 +67,7 @@ export default function DetailScreen() {
   const [detail,      setDetail]      = useState<KomikDetail | null>(null);
   const [loading,     setLoading]     = useState(true);
   const [isFavorited, setIsFavorited] = useState(false);
+  const [favLoading,  setFavLoading]  = useState(false); // cegah double-tap
   const [expanded,    setExpanded]    = useState(false);
   const [lastReadId,  setLastReadId]  = useState<string | undefined>();
 
@@ -74,9 +75,7 @@ export default function DetailScreen() {
     if (!komikId) return;
     setLoading(true);
     api.detail(komikId)
-      .then(res => {
-        if (res?.data) setDetail(res.data);
-      })
+      .then(res => { if (res?.data) setDetail(res.data); })
       .catch(() => Alert.alert('Error', 'Gagal memuat detail komik'))
       .finally(() => setLoading(false));
   }, [komikId]);
@@ -86,21 +85,55 @@ export default function DetailScreen() {
     favoritStorage.isFavorited(detail.id).then(setIsFavorited);
   }, [detail]);
 
+  // FIX 1: Baca lastReadId dari progressStorage tiap kali layar difokus
+  // (termasuk saat balik dari reader) — bukan hanya saat openChapter
+  useFocusEffect(useCallback(() => {
+    if (!detail?.chapter_list?.length) return;
+    // Cek chapter mana yang punya progress tersimpan
+    const found = detail.chapter_list.find(ch => {
+      const p = progressStorage.get(ch.id);
+      return p !== null;
+    });
+    setLastReadId(found?.id);
+  }, [detail]));
+
   const toggleFavorite = async () => {
-    if (!detail) return;
+    if (!detail || favLoading) return;
+    setFavLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const nowFav = await favoritStorage.toggle(detail);
-    setIsFavorited(nowFav);
+    // FIX 2: Optimistic update dulu, baru sync ke Firestore
+    setIsFavorited(prev => !prev);
+    try {
+      const nowFav = await favoritStorage.toggle(detail);
+      setIsFavorited(nowFav); // sync hasil aktual
+    } catch {
+      setIsFavorited(prev => !prev); // rollback kalau error
+    } finally {
+      setFavLoading(false);
+    }
   };
 
-  const openChapter = (chapter: Chapter) => {
+  const openChapter = useCallback((chapter: Chapter) => {
     if (!detail) return;
     setLastReadId(chapter.id);
-    router.push(`/read/${encodeSlug(chapter.id)}?komikId=${encodeURIComponent(detail.id)}&chapterIndex=${chapter.index}&title=${encodeURIComponent(chapter.title)}`);
-  };
+    router.push(
+      `/read/${encodeSlug(chapter.id)}?komikId=${encodeURIComponent(detail.id)}&chapterIndex=${chapter.index}&title=${encodeURIComponent(chapter.title)}`
+    );
+  }, [detail, router]);
 
-  const synopsis  = detail?.synopsis ?? '';
-  const showMore  = synopsis.length > 150;
+  // FIX 3: Sort chapter by index — jangan assume urutan dari API
+  const sortedChapters = useMemo(() => {
+    if (!detail?.chapter_list) return [];
+    // Descending: chapter terbaru di atas (lazim di reader manhwa)
+    return [...detail.chapter_list].sort((a, b) => b.index - a.index);
+  }, [detail]);
+
+  // Chapter pertama (index terkecil) dan terbaru (index terbesar)
+  const firstChapter  = useMemo(() => sortedChapters[sortedChapters.length - 1], [sortedChapters]);
+  const latestChapter = useMemo(() => sortedChapters[0], [sortedChapters]);
+
+  const synopsis       = detail?.synopsis ?? '';
+  const showMore       = synopsis.length > 150;
   const displaySynopsis = expanded || !showMore ? synopsis : synopsis.slice(0, 150) + '…';
 
   if (loading) {
@@ -119,12 +152,14 @@ export default function DetailScreen() {
 
   if (!detail) return null;
 
-  const genres = detail.genre ? detail.genre.split(',').map(g => g.trim()).filter(Boolean) : [];
+  const genres = detail.genre
+    ? detail.genre.split(',').map(g => g.trim()).filter(Boolean)
+    : [];
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
       <FlashList
-        data={detail.chapter_list}
+        data={sortedChapters}
         estimatedItemSize={56}
         keyExtractor={item => item.id}
         ListHeaderComponent={() => (
@@ -147,7 +182,11 @@ export default function DetailScreen() {
                   <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
                   <Ionicons name="arrow-back" size={20} color="#fff" />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={toggleFavorite} style={[styles.navBtn, { backgroundColor: 'rgba(0,0,0,0.4)' }]}>
+                <TouchableOpacity
+                  onPress={toggleFavorite}
+                  disabled={favLoading}
+                  style={[styles.navBtn, { backgroundColor: 'rgba(0,0,0,0.4)', opacity: favLoading ? 0.6 : 1 }]}
+                >
                   <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
                   <Ionicons
                     name={isFavorited ? 'bookmark' : 'bookmark-outline'}
@@ -160,7 +199,6 @@ export default function DetailScreen() {
               {/* Info */}
               <View style={styles.heroInfo}>
                 <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
-                  {/* Poster kecil */}
                   <Image
                     source={{ uri: detail.image_poster }}
                     style={styles.miniPoster}
@@ -171,8 +209,6 @@ export default function DetailScreen() {
                     {detail.author ? (
                       <Text style={[styles.author, { color: theme.subtext }]}>by {detail.author}</Text>
                     ) : null}
-
-                    {/* Badges */}
                     <View style={styles.badgeRow}>
                       {detail.status ? (
                         <View style={[styles.badge, {
@@ -232,26 +268,22 @@ export default function DetailScreen() {
             {/* Chapter header */}
             <Animated.View entering={FadeInDown.delay(200).duration(400)} style={styles.chapterHeader}>
               <View style={[styles.sectionDot, { backgroundColor: theme.accent }]} />
-              <Text style={[styles.sectionLabel, { color: theme.text, marginBottom: 0 }]}>
-                CHAPTER LIST
-              </Text>
-              <Text style={[styles.chapterCount, { color: theme.subtext }]}>
-                {detail.chapter_list.length} chapter
-              </Text>
+              <Text style={[styles.sectionLabel, { color: theme.text, marginBottom: 0 }]}>CHAPTER LIST</Text>
+              <Text style={[styles.chapterCount, { color: theme.subtext }]}>{sortedChapters.length} chapter</Text>
             </Animated.View>
 
-            {/* Read first/latest buttons */}
-            {detail.chapter_list.length > 0 && (
+            {/* CTA buttons */}
+            {sortedChapters.length > 0 && (
               <Animated.View entering={FadeInDown.delay(240).duration(400)} style={styles.ctaRow}>
                 <TouchableOpacity
-                  onPress={() => openChapter(detail.chapter_list[detail.chapter_list.length - 1])}
+                  onPress={() => firstChapter && openChapter(firstChapter)}
                   style={[styles.ctaBtn, { backgroundColor: theme.accent, flex: 1 }]}
                 >
                   <Ionicons name="play" size={14} color={theme.bg} />
                   <Text style={[styles.ctaBtnText, { color: theme.bg }]}>Chapter 1</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  onPress={() => openChapter(detail.chapter_list[0])}
+                  onPress={() => latestChapter && openChapter(latestChapter)}
                   style={[styles.ctaBtn, { backgroundColor: theme.card, borderWidth: 1, borderColor: theme.border, flex: 1 }]}
                 >
                   <Ionicons name="flash" size={14} color={theme.accent} />
@@ -265,7 +297,7 @@ export default function DetailScreen() {
           <View style={{ paddingHorizontal: 16 }}>
             <ChapterRow
               chapter={item}
-              isLast={index === detail.chapter_list.length - 1}
+              isLast={index === sortedChapters.length - 1}
               lastReadId={lastReadId}
               onPress={() => openChapter(item)}
             />
